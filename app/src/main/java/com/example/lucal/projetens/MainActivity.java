@@ -1,7 +1,10 @@
 package com.example.lucal.projetens;
 
+import android.app.Activity;
 import android.content.Context;
 import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
@@ -12,7 +15,7 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity implements SensorEventListener {
 
     private SensorManager mSensorManager;
     static private Sensor GravitySensor;
@@ -35,4 +38,29 @@ public class MainActivity extends AppCompatActivity {
         GyroSensor      = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
 
     }
+    @Override
+    public final void onAccuracyChanged(Sensor sensor, int accuracy) {
+        // Do something here if sensor accuracy changes.
+    }
+
+    @Override
+    public final void onSensorChanged(SensorEvent event) {
+        // The light sensor returns a single value.
+        // Many sensors return 3 values, one for each axis.
+        float lux = event.values[0];
+        // Do something with this sensor value.
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mSensorManager.registerListener(this, GravitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        mSensorManager.unregisterListener(this);
+    }
+
 }
