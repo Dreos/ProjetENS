@@ -36,8 +36,9 @@ public class MainActivity extends Activity implements  SensorEventListener {
     static private Log log;
     private static  WifiManager mWifiManager ;
     private static Context context ;
-    HashMap<Sensor , Sensor> listSensor ;
-    HashMap<Sensor , IHMSensor> listIHMSensor ;
+    private Sensor accelerometer;
+    /*HashMap<Integer , Sensor> listSensor ;
+    HashMap<Integer , IHMSensor> listIHMSensor ;*/
 
 
 
@@ -51,15 +52,16 @@ public class MainActivity extends Activity implements  SensorEventListener {
 
         //recuperation du sensor manager
         mSensorManager  = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        Sensor test = (Sensor) mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        addSensor(test);
+
+        accelerometer = mSensorManager .getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+
         // recuperation de tout les sensors actif sur la machine
         liste = mSensorManager.getSensorList(Sensor.TYPE_ALL);
         // test des sensor actifs
-        /*for(int i = 0 ; i <liste.size();i++){
+        for(int i = 0 ; i <liste.size();i++){
             Sensor tmp = liste.get(i);
             System.out.println(tmp.toString());
-        }*/
+        }
 
 
 
@@ -82,26 +84,33 @@ public class MainActivity extends Activity implements  SensorEventListener {
 
     @Override
     public final void onSensorChanged(SensorEvent event){
-        Sensor s = event.sensor ;
+
         SensorEvent e = event ;
-
-
-        if ( listSensor.get(e.sensor)!= null ){
+        if (e.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
             float x = e.values[0];
             float y = e.values[1];
             float z = e.values[2];
-            System.out.println(e.sensor.getType()+":");
-            System.out.println("x: "+x+"  y: "+y+"  z: "+z);
+            System.out.println(e.sensor.getType() + ":");
+            System.out.println("x: " + x + "  y: " + y + "  z: " + z);
         }
+
 
     }
 
-    public void addSensor(Sensor s){
-        if (listSensor.get(s)!=null) {
-            listSensor.put(s, s);
-            IHMSensor tmp = new IHMSensor(s);
-            listIHMSensor.put(s,tmp);
+    /*public void addSensor(Sensor s){
+        Sensor tmpsensor = null;
+        try{
+            tmpsensor = listSensor.get(s);
         }
+        catch(Exception e){
+
+        }
+        if (tmpsensor!=null) {
+            listSensor.put(s.getType(), s);
+            IHMSensor tmp = new IHMSensor(s);
+            listIHMSensor.put(s.getType(),tmp);
+        }
+
 
 
     }
@@ -154,12 +163,12 @@ public class MainActivity extends Activity implements  SensorEventListener {
         }, filter);
         // start WiFi Scan
         mWifiManager.startScan();
-    }
+    }*/
     @Override
     protected void onResume() {
         super.onResume();
 
-        //mSensorManager.registerListener(this, GravitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+        mSensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
     }
 
     @Override
