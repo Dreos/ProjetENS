@@ -1,30 +1,28 @@
 package com.example.lucal.projetens;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.RequiresApi;
-import android.support.design.widget.CoordinatorLayout;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.AppCompatTextView;
-import android.support.v7.widget.Toolbar;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -33,25 +31,34 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import static android.content.ContentValues.TAG;
+import static java.lang.System.*;
 
 public class MainActivity extends Activity implements  SensorEventListener {
 
     private static Context context ;
     static private Log log;
 
-    private static  WifiManager mWifiManager ;
+    private WifiManager wifiManager ;
 
     private SensorManager mSensorManager;
-    private List<Sensor> liste ;
+
+    // liste des sensors affiché
     private ArrayList<Sensor> sensorListened;
+
+
+    // liste contenant l'IHM de toutles sensors disponibles ;
     private HashMap<Sensor,IHMSensor> listIHM_S;
+
 
     private Sensor accelerometre;
     private Sensor gyroscope;
     private Sensor magnetometre;
 
     private LinearLayout layout;
+
+    private WifiScanReciever broadcastReceiver ;
+
+
 
     @RequiresApi(api = Build.VERSION_CODES.KITKAT_WATCH)
     @Override
@@ -60,7 +67,12 @@ public class MainActivity extends Activity implements  SensorEventListener {
         super.onCreate(savedInstanceState);
         context         =   getApplicationContext();
 
+        // demande plusieurs permissions ( voir Outils )
+        Outils outils = new Outils();
+        outils.permissionsRequest(outils.getPermissions1(),this,this);
 
+
+        // recuperation des sensors et du sensor manager
         mSensorManager  =   (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         accelerometre   =   (Sensor)        mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         gyroscope       =   (Sensor)        mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
@@ -71,27 +83,48 @@ public class MainActivity extends Activity implements  SensorEventListener {
         layout          = new LinearLayout(this);
         setContentView(layout);
         layout.setOrientation(LinearLayout.VERTICAL);
-
+        Button boutonRechercher = new Button (this);
+        layout.addView(boutonRechercher);
         //recuperation du sensor manager
 
-        wifiScan();
 
         // recuperation de tout les sensors actif sur la machine
-        listIHM_S       = new HashMap<Sensor,IHMSensor>();
-        liste = mSensorManager.getSensorList(Sensor.TYPE_ALL);
+        listIHM_S            = new HashMap<Sensor,IHMSensor>();
+        List<Sensor> liste   = mSensorManager.getSensorList(Sensor.TYPE_ALL);
 
+        // on remplie la listIHM_S avec les IHM sensors et on les mets tous invisibles ;
         for(Sensor s : liste){
-            IHMSensor UI = new IHMSensor(s);
+            IHMSensor UI = new IHMSensor(s,layout,this);
             listIHM_S.put(s,UI);
             deleteSensor(s);
         }
 
-
+        // ajout de sensors pour le tests
         addSensor(accelerometre);
         addSensor(gyroscope);
         addSensor(magnetometre);
+
+        // supression d'un sensor pour les test
         deleteSensor(accelerometre);
 
+        wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        broadcastReceiver = new WifiScanReciever(this,this);
+
+
+        // On attache le receiver au scan result
+        registerReceiver(broadcastReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+
+
+
+
+
+        boutonRechercher.setOnClickListener(new View.OnClickListener() {
+
+            public void onClick(View v) {
+                if(wifiManager != null)
+                    wifiManager.startScan();
+            }
+        });
 
 
     }
@@ -103,13 +136,15 @@ public class MainActivity extends Activity implements  SensorEventListener {
 
     @RequiresApi(api = Build.VERSION_CODES.KITKAT_WATCH)
     @Override
+
+    // fonction qui est appele a chaque rafraichissement d'un sensor
     public final void onSensorChanged(SensorEvent event){
 
         SensorEvent e = event ;
-        Sensor s = event.sensor;
-        String type = s.getStringType();
 
-        for(Sensor sensor : sensorListened){
+        String type = event.sensor.getStringType();
+
+       /* for(Sensor sensor : sensorListened){
             if(sensor.getType()==e.sensor.getType()){
 
                 float x = e.values[0];
@@ -121,10 +156,11 @@ public class MainActivity extends Activity implements  SensorEventListener {
 
                 System.out.println(type + ":");
                 System.out.println("x: " + x + "  y: " + y + "  z: " + z);
+
+
+
             }
-        }
-
-
+        }*/
     }
     // ajoute un sensor a la liste des sensors selectionné et l'affiche
     public void addSensor(Sensor s){
@@ -143,85 +179,18 @@ public class MainActivity extends Activity implements  SensorEventListener {
         }
         mSensorManager.unregisterListener(this,s);
     }
-
-
-    // Class qui gere l'affichage des sensors
-    public class IHMSensor{
-
-        Sensor sensor ;
-
-        TextView type   = new TextView(context) ;
-        TextView x      = new TextView(context) ;
-        TextView y      = new TextView(context) ;
-        TextView z      = new TextView(context) ;
-
-        @RequiresApi(api = Build.VERSION_CODES.KITKAT_WATCH)
-        public IHMSensor(Sensor s){
-
-            sensor = s ;
-            type.setText(s.getStringType());
-            x.setText("0.0");
-            y.setText("0.0");
-            z.setText("0.0");
-            layout.addView(type);
-            layout.addView(x);
-            layout.addView(y);
-            layout.addView(z);
-
-
-        }
-
-        public void setValeurs(float X,float Y,float Z){
-            x.setText(String.valueOf(X));
-            y.setText(String.valueOf(Y));
-            z.setText(String.valueOf(Z));
-        }
-
-        public void invisible(){
-            type.setVisibility(View.INVISIBLE);
-            x.setVisibility(View.INVISIBLE);
-            y.setVisibility(View.INVISIBLE);
-            z.setVisibility(View.INVISIBLE);
-        }
-
-        public void visible(){
-            type.setVisibility(View.VISIBLE);
-            x.setVisibility(View.VISIBLE);
-            y.setVisibility(View.VISIBLE);
-            z.setVisibility(View.VISIBLE);
-        }
-    }
-
-    // classe qui gere l'affichage des informations WIFI
-    public void wifiScan(){
-        mWifiManager = (WifiManager) context.getSystemService(WIFI_SERVICE);
-        mWifiManager.setWifiEnabled(true);
-
-        // enregistrement du resultat du scan wifi
-        List<ScanResult> results = mWifiManager.getScanResults();
-        final int N = results.size();
-
-        System.out.println( "Wi-Fi Scan Results ... Count:" + N);
-        for(int i=0; i < N; ++i) {
-            System.out.println( "  BSSID       =" + results.get(i).BSSID);
-            System.out.println( "  SSID        =" + results.get(i).SSID);
-            System.out.println( "  Capabilities=" + results.get(i).capabilities);
-            System.out.println( "  Frequency   =" + results.get(i).frequency);
-            System.out.println( "  Level       =" + results.get(i).level);
-            System.out.println( "---------------");
-        }
-        // start WiFi Scan
-        mWifiManager.startScan();
+    public WifiManager getWifiManager(){
+        return wifiManager ;
     }
     @Override
     protected void onResume() {
         super.onResume();
+        registerReceiver(broadcastReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
     }
-
     @Override
     protected void onPause() {
         super.onPause();
         mSensorManager.unregisterListener(this);
+        unregisterReceiver(broadcastReceiver);
     }
-
 }
